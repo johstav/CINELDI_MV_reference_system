@@ -101,14 +101,14 @@ P = 0
 
 # Time of flexibility activation (minutes from start time); 
 # set to None to disable flexibility activation
-t_act = None
+t_act = 1200
 
 # EWH activation signal that sets the status of the EWHs after activating flexibility; 
 # 1 turns all EWHs on; 0 turns all EWHs off; set to None to disable flexibility activation
-S_act = None
+S_act = 1
 
 # Number of time steps (minutes)
-time_steps = 24*60
+time_steps = 48*60
 
 # Number of EWHs / hot water tanks to model
 N_EWH = 1
@@ -188,3 +188,14 @@ elif N_EWH > 1:
     if (t_act != None) & (S_act != None):
         ax1.legend([h_P_base,h_P], ['without flex.','with flex.'], loc = 'upper left')
     plt.show()
+
+P_flex = P_list_all - P_list_base_all   # flexibility in kW
+
+plt.figure(figsize=(10,5))
+plt.axhline(0, color='k', linestyle='--', linewidth=1)   # baseline reference
+plt.plot(P_flex, color='tab:green')
+plt.xlabel("Time (minutes)")
+plt.ylabel("Flexibility (kW)")
+plt.title("Activated Flexibility vs. Baseline Consumption")
+plt.grid(True)
+plt.show()
