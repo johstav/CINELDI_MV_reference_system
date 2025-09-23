@@ -22,8 +22,7 @@ import pandapower_read_csv as ppcsv
 
 # Location of (processed) data set for CINELDI MV reference system
 # (to be replaced by your own local data folder)
-path_data_set         = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/'
-
+path_data_set         = 'CINELDI_MV_reference_system_v_2023-03-06'
 # Scenario file name including two LECs
 filename_scenario = 'scenario_LEC_and_FCS.csv'
 
