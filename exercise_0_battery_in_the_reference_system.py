@@ -25,7 +25,7 @@ import math
 
 # Location of (processed) data set for CINELDI MV reference system
 # (to be replaced by your own local data folder)
-path_data_set         = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/'
+path_data_set         = 'CINELDI_MV_reference_system_v_2023-03-06'
 
 filename_residential_fullpath = os.path.join(path_data_set,'time_series_IDs_primarily_residential.csv')
 filename_irregular_fullpath = os.path.join(path_data_set,'time_series_IDs_irregular.csv')      
