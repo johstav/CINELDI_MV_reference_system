@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 ﻿year_rel;bus_i;load_added_MW;label
 1;89;0.88;LEC
 2;104;0.88;LEC
+=======
+﻿year_rel;bus_i;load_added_MW;label
+1;89;0.88;LEC
+2;104;0.88;LEC
+>>>>>>> 0f00a8667af64ec3e7533cd20940b299cbb28cec
