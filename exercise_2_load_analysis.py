@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import pandapower.topology as top
+import networkx as nx
  # provided module
 
 
@@ -50,18 +51,15 @@ i_time_series_new_load = 90
 
 # %% Read pandapower network
 
+# %% TASK 1 ###
+
 net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
 
 eg_buses = list(net.ext_grid.bus.values)
 assert len(eg_buses) >= 1, "No ext_grid found"
 slack_bus = int(eg_buses[0])  # typically bus 0
 
-# ---------- 2) Run a power flow ----------
 pp.runpp(net, init="auto")
-
-import pandapower.topology as top
-import networkx as nx
-
 
 # --- Find actual start bus (slack/ext_grid) ---
 if len(net.ext_grid) == 0:
@@ -92,9 +90,9 @@ path_nodes = nx.shortest_path(G, source=BUS_START, target=BUS_END)
 v_pu_along_path = net.res_bus.loc[path_nodes, "vm_pu"].to_numpy()
 
 x = np.arange(len(path_nodes))
-plt.figure()
+plt.figure(figsize=(14, 6))
 plt.plot(x, v_pu_along_path, marker="o")
-plt.xticks(x, path_nodes, rotation=90)
+plt.xticks(x, path_nodes, rotation=45, ha='right')  # Rotate and right-align
 plt.xlabel(f"Bus along feeder ({BUS_START} → {BUS_END})")
 plt.ylabel("Voltage [p.u.]")
 plt.title("Voltage profile along main radial (base case)")
@@ -114,6 +112,14 @@ else:
 vmin_area = net.res_bus.loc[area_buses, "vm_pu"].min()
 bus_vmin = net.res_bus.loc[area_buses, "vm_pu"].idxmin()
 print(f"Lowest voltage in area: {vmin_area:.4f} p.u. at bus {bus_vmin}")
+
+
+
+
+
+
+# %% TASK 2
+
 
 # %% Extract hourly load time series for a full year for all the load points in the CINELDI reference system
 # (this code is made available for solving task 3)
