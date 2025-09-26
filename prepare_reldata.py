@@ -16,8 +16,7 @@ import os
 
 # Location of (processed) data set for CINELDI MV reference system
 # (to be replaced by your own local data folder)
-path_data_set         = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/'
-
+path_data_set         = 'CINELDI_MV_reference_system_v_2023-03-06'
 # Input file names
 filename_line_types = 'distribution_line_types_in_reference_grid.csv'
 filename_reldata_input = 'reldata_for_component_types.csv'

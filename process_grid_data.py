@@ -22,7 +22,7 @@ import pandapower_read_csv as ppcsv
 path_input = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/grid_data_input'
 
 #  Path of folder with processed grid data (outputs)
-path_data_set = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system'
+path_data_set = 'CINELDI_MV_reference_system_v_2023-03-06'
 
 # True if rateA (branch flow limit) is in p.u. and should be converted to units MVA 
 do_mult_rateA = True

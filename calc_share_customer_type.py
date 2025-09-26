@@ -24,7 +24,7 @@ import os
 path_input             = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/load_data_input/'
 
 #  Path of folder with processed data set
-path_output = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system'
+path_output = 'CINELDI_MV_reference_system_v_2023-03-06'
 
 filename_in         = 'load_data_set_original'
 

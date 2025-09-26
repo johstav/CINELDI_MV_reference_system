@@ -1,4 +1,4 @@
-﻿type;main_type;R_ohm_per_km;X_ohm_per_km;Cd_nF_per_km;Imax_A
+type;main_type;R_ohm_per_km;X_ohm_per_km;Cd_nF_per_km;Imax_A
 BLX 50;Overhead line (1–22 kV);0.360000014;0.297470599;11.74587935;245
 Cu 16;Overhead line (1–22 kV);1.126999974;0.333341211;10.47949777;115
 FeAl 25;Overhead line (1–22 kV);0.723999977;0.333698779;10.46825149;235

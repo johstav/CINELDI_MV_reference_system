@@ -20,7 +20,7 @@ import pandapower_read_csv as ppcsv
 
 # Location of (processed) data set for CINELDI MV reference system
 # (to be replaced by your own local data folder)
-path_data_set         = 'C:/Users/ivespe/Data_sets/CINELDI_MV_reference_system/'
+path_data_set         = 'CINELDI_MV_reference_system_v_2023-03-06'
 
 # Filename of bus matrix on the MATPOWER format with load demand values for a given snapshot 
 # (day and hour of the year) from the load demand data set; this output file will be saved to 

@@ -136,5 +136,3 @@ new_load_time_series = new_load_profiles[i_time_series_new_load]*P_max_new
 # (1-indexed) and the row index is the hour of the year (0-indexed)
 load_time_series_mapped = profiles_mapped.mul(net.load['p_mw'])
 # %%
-
-

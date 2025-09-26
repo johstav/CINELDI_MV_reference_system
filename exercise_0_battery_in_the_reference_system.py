@@ -38,7 +38,7 @@ net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
 
 # %% Test running power flow with a peak load model
 # (i.e., all loads are assumed to be at their annual peak load simultaneously)
-
+print("heihei jeg printer jeg")
 pp.runpp(net,init='results',algorithm='bfsw')
 
 print('Total load demand in the system assuming a peak load model: ' + str(net.res_load['p_mw'].sum()) + ' MW')
