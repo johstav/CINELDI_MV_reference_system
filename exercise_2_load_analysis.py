@@ -24,8 +24,6 @@ import matplotlib as mpl
 import numpy as np
 import pandapower.topology as top
 import networkx as nx
- # provided module
-
 
 # %% Define input data
 
@@ -42,20 +40,19 @@ bus_i_subset = [90, 91, 92, 96]
 # Assumed power flow limit in MW that limit the load demand in the grid area (through line 85-86)
 P_lim = 0.637 
 
-# Maximum load demand of new load being added to the system
-P_max_new = 0.4
+
+# Maximum load demand of new load being added to the system (random between 1 and 2)
+scaling_factor = np.random.uniform(1, 2)
+print(f"Scaling factor (scaling_factor) for new load: {scaling_factor:.3f}")
 
 # Which time series from the load data set that should represent the new load
 i_time_series_new_load = 90
 
-
-# %% Read pandapower network
-
-# %% TASK 1 ###
-
+# %% TASK 1 ##
+print("\n--- TASK 1 ---")
 net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
 
-eg_buses = list(net.ext_grid.bus.values)
+eg_buses = list(net.ext_grid.bus.values) # list with slack buses /external grid buses
 assert len(eg_buses) >= 1, "No ext_grid found"
 slack_bus = int(eg_buses[0])  # typically bus 0
 
@@ -98,7 +95,7 @@ plt.ylabel("Voltage [p.u.]")
 plt.title("Voltage profile along main radial (base case)")
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 # --- Lowest voltage in the 'area of interest' ---
 # If your sheet names buses 85–96 but those IDs don’t exist, choose the *last 12 buses* on this feeder as the area.
@@ -113,15 +110,53 @@ vmin_area = net.res_bus.loc[area_buses, "vm_pu"].min()
 bus_vmin = net.res_bus.loc[area_buses, "vm_pu"].idxmin()
 print(f"Lowest voltage in area: {vmin_area:.4f} p.u. at bus {bus_vmin}")
 
-
-
-
-
-
 # %% TASK 2
+print("\n--- TASK 2 ---")
+
+# make table with load data for the load points in the area of interest
+load_net = net.load[net.load['bus'].isin(bus_i_subset)]
+table = load_net[['bus', 'p_mw', 'q_mvar']].copy()
+table.columns = ['Bus', 'Active Power (p_mw)', 'Reactive Power (q_mvar)']
+sum_row = pd.DataFrame({'Bus': [''],
+                       'Active Power (p_mw)': [''],
+                       'Reactive Power (q_mvar)': ['']})
+table = pd.concat([table, sum_row], ignore_index=True)
+sum_row2 = pd.DataFrame({'Bus': ['Sum'],
+                        'Active Power (p_mw)': [table['Active Power (p_mw)'][:-1].sum()],
+                        'Reactive Power (q_mvar)': [table['Reactive Power (q_mvar)'][:-1].sum()]})
+table = pd.concat([table, sum_row2], ignore_index=True)
+print("\n" + table.to_string(index=False, justify='center'))
+
+#random scaling factor defined above
+#scaling_factor = 2 
+
+# Scale all loads and rerun power flow
+net.load['p_mw'] *= scaling_factor
+net.load['q_mvar'] *= scaling_factor
+pp.runpp(net, init="auto")
+
+# Print scaled table for the area
+load_net_scaled = net.load[net.load['bus'].isin(bus_i_subset)]
+table_scaled = load_net_scaled[['bus', 'p_mw', 'q_mvar']].copy()
+table_scaled.columns = ['Bus', 'Active Power (p_mw)', 'Reactive Power (q_mvar)']
+sum_row_scaled = pd.DataFrame({'Bus': [''],
+                       'Active Power (p_mw)': [''],
+                       'Reactive Power (q_mvar)': ['']})
+table_scaled = pd.concat([table_scaled, sum_row_scaled], ignore_index=True)
+sum_row2_scaled = pd.DataFrame({'Bus': ['Sum'],
+                        'Active Power (p_mw)': [table_scaled['Active Power (p_mw)'][:-1].sum()],
+                        'Reactive Power (q_mvar)': [table_scaled['Reactive Power (q_mvar)'][:-1].sum()]})
+table_scaled = pd.concat([table_scaled, sum_row2_scaled], ignore_index=True)
+print("\nTable after scaling all loads by factor {:.3f}:".format(scaling_factor))
+print(table_scaled.to_string(index=False, justify='center'))
 
 
-# %% Extract hourly load time series for a full year for all the load points in the CINELDI reference system
+# plot voltage profile along the main radial after scaling all loads
+
+
+# %% Task 3 ##
+print("\n--- TASK 3 ---")
+# Extract hourly load time series for a full year for all the load points in the CINELDI reference system
 # (this code is made available for solving task 3)
 
 load_profiles = lp.load_profiles(filename_load_data_fullpath)
@@ -135,7 +170,7 @@ profiles_mapped = load_profiles.map_rel_load_profiles(filename_load_mapping_full
 
 # Retrieve normalized load time series for new load to be added to the area
 new_load_profiles = load_profiles.get_profile_days(repr_days)
-new_load_time_series = new_load_profiles[i_time_series_new_load]*P_max_new
+new_load_time_series = new_load_profiles[i_time_series_new_load]*scaling_factor
 
 # Calculate load time series in units MW (or, equivalently, MWh/h) by scaling the normalized load time series by the
 # maximum load value for each of the load points in the grid data set (in units MW); the column index is the bus number
