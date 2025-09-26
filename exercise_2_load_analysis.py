@@ -71,3 +71,26 @@ new_load_time_series = new_load_profiles[i_time_series_new_load]*P_max_new
 # (1-indexed) and the row index is the hour of the year (0-indexed)
 load_time_series_mapped = profiles_mapped.mul(net.load['p_mw'])
 # %%
+pp.runpp(net)
+#voltage_profiles = load_profiles.get_profile_days(repr_days)
+
+
+
+# Task 1
+voltages_pu = net.res_bus['vm_pu']
+voltages_pu_subset = voltages_pu.loc[voltages_pu.index <= 96]
+voltage_profile = net.res_bus.vm_pu.loc[0:96]
+min_voltage = min(voltage_profile)
+min_voltage_bus = voltage_profile.idxmin()
+print('Minimum voltage is at bus ' , min_voltage_bus, ' with a value of ' ,min_voltage, ' p.u.')
+
+plt.figure(figsize=(10, 5))
+plt.plot(voltages_pu_subset.values, marker='o')
+plt.xlabel('Bus index (0 to 96)')
+plt.ylabel('Voltage (p.u.)')
+plt.title('Bus Voltages (p.u.) from Bus 0 to Bus 96')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
