@@ -326,4 +326,73 @@ print(f" Sum of individual peaks (MW): {sum_individual_peaks:.3f}")
 print(f" Aggregated peak (MW): {agg_peak:.3f}")
 print(f" Coincidence factor: {coincidence_factor:.3f}")
 
-# %%
+# %% Task 7 ##
+# Constrains : P_lim = 0.637 MW and Vmin:lim = 0.95 p.u.
+# To calculate capacity margin we need to:
+# Find base aggregated area load
+# Compute how much additional load can be added 
+# estimate 
+
+P_LIMIT = 0.637           # MW (line limit)
+VMIN_LIMIT = 0.95         # p.u. (voltage limit)
+
+#Base aggregated area load 
+if "scale" in results.columns and (results["scale"] == 1.0).any():
+    base_row = results[results["scale"] == 1.0].iloc[0]
+else:
+    # assume the smallest scale corresponds to the base (scales were in [1,2])
+    base_row = results.iloc[0]
+
+P_area_base = float(base_row["P_area_sum_MW"])
+Vmin_base = float(base_row["Vmin_area_pu"])
+
+# Margin to line flow limit
+margin_to_line_MW = max(0.0, P_LIMIT - P_area_base)
+pct_increase_to_line = margin_to_line_MW / P_area_base * 100.0 if P_area_base>0 else np.nan
+
+#Print line flow limit results
+print("\nCapacity relative to line flow limit:")
+print(f"  - Line (limit) P_LIMIT = {P_LIMIT:.3f} MW")
+print(f"  - Margin (MW) until line limit reached: {margin_to_line_MW:.4f} MW")
+print(f"  - Relative increase allowed: {pct_increase_to_line:.1f} %")
+
+# 3) Margin to voltage limit (estimate by linear interpolation of results)
+#    We want P_area at which Vmin_area_pu crosses VMIN_LIMIT.
+#    Ensure results sorted by P_area_sum_MW
+res = results.sort_values("P_area_sum_MW").reset_index(drop=True)
+P_vals = res["P_area_sum_MW"].to_numpy()
+V_vals = res["Vmin_area_pu"].to_numpy()
+
+# If all V are above limit, then voltage never violated in sweep range
+if (V_vals >= VMIN_LIMIT).all():
+    P_at_vlimit = np.nan
+    margin_to_voltage_MW = np.nan
+    pct_increase_to_voltage = np.nan
+    print("\nVoltage limit not reached within sampled scaling (no violation in sweep).")
+else:
+    # find first index where V drops below VMIN_LIMIT
+    idx = np.where(V_vals < VMIN_LIMIT)[0][0]
+    # If idx == 0 then even the lowest P already violates VMIN
+    if idx == 0:
+        P_at_vlimit = P_vals[0]
+    else:
+        # linear interpolation between (P_vals[idx-1], V_vals[idx-1]) and (P_vals[idx], V_vals[idx])
+        P1, V1 = P_vals[idx-1], V_vals[idx-1]
+        P2, V2 = P_vals[idx], V_vals[idx]
+        # avoid division by zero if V1==V2
+        if V2 == V1:
+            P_at_vlimit = P2
+        else:
+            # solve for P such that V(P) = VMIN_LIMIT assuming linear V(P)
+            P_at_vlimit = P1 + (VMIN_LIMIT - V1) * (P2 - P1) / (V2 - V1)
+
+    margin_to_voltage_MW = max(0.0, P_at_vlimit - P_area_base) if not np.isnan(P_at_vlimit) else np.nan
+    pct_increase_to_voltage = margin_to_voltage_MW / P_area_base * 100.0 if P_area_base>0 else np.nan
+
+print("\nCapacity relative to voltage limit:")
+print(f"  - Estimated aggregated load when Vmin reaches {VMIN_LIMIT:.2f} p.u.: {P_at_vlimit:.4f} MW")
+print(f"  - Margin (MW) until voltage limit reached: {margin_to_voltage_MW:.4f} MW")
+print(f"  - Relative increase allowed: {pct_increase_to_voltage:.1f} %")
+
+# %% Task 8 ##
+
