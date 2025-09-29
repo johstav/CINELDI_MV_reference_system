@@ -24,6 +24,7 @@ import matplotlib as mpl
 import numpy as np
 import pandapower.topology as top
 import networkx as nx
+import networkx as nx
 
 # %% Define input data
 
@@ -45,13 +46,20 @@ P_lim = 0.637
 scaling_factor = np.random.uniform(1, 2)
 print(f"Scaling factor (scaling_factor) for new load: {scaling_factor:.3f}")
 
+# Maximum load demand of new load being added to the system (random between 1 and 2)
+scaling_factor = np.random.uniform(1, 2)
+print(f"Scaling factor (scaling_factor) for new load: {scaling_factor:.3f}")
+
 # Which time series from the load data set that should represent the new load
 i_time_series_new_load = 90
 
 # %% TASK 1 ##
 print("\n--- TASK 1 ---")
+# %% TASK 1 ##
+print("\n--- TASK 1 ---")
 net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
 
+eg_buses = list(net.ext_grid.bus.values) # list with slack buses /external grid buses
 eg_buses = list(net.ext_grid.bus.values) # list with slack buses /external grid buses
 assert len(eg_buses) >= 1, "No ext_grid found"
 slack_bus = int(eg_buses[0])  # typically bus 0
@@ -88,7 +96,9 @@ v_pu_along_path = net.res_bus.loc[path_nodes, "vm_pu"].to_numpy()
 
 x = np.arange(len(path_nodes))
 plt.figure(figsize=(14, 6))
+plt.figure(figsize=(14, 6))
 plt.plot(x, v_pu_along_path, marker="o")
+plt.xticks(x, path_nodes, rotation=45, ha='right')  # Rotate and right-align
 plt.xticks(x, path_nodes, rotation=45, ha='right')  # Rotate and right-align
 plt.xlabel(f"Bus along feeder ({BUS_START} → {BUS_END})")
 plt.ylabel("Voltage [p.u.]")
@@ -228,6 +238,7 @@ profiles_mapped = load_profiles.map_rel_load_profiles(filename_load_mapping_full
 
 # Retrieve normalized load time series for new load to be added to the area
 new_load_profiles = load_profiles.get_profile_days(repr_days)
+new_load_time_series = new_load_profiles[i_time_series_new_load]*scaling_factor
 new_load_time_series = new_load_profiles[i_time_series_new_load]*scaling_factor
 
 # Calculate load time series in units MW (or, equivalently, MWh/h) by scaling the normalized load time series by the
