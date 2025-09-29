@@ -263,3 +263,54 @@ max_aggregated_load = aggregated_load_area.max()
 print("Maximum aggregated load demand:", max_aggregated_load)
 
 # %% Task 5 ##
+
+
+# %% Task 6 ##
+#Utilization time is given by Annual energy (MWh) / Peak Load (MW)
+# Coincidence factor is given by Peak of aggregated load / sum of individual peaks
+
+# Extract time series for buses of interest
+area_ts = load_time_series_mapped[area_buses] # rows: hours, cols: buses
+
+# Individual stats
+individual_peak = area_ts.max(axis=0)            # MW per bus
+individual_energy = area_ts.sum(axis=0)          # MWh per bus
+
+#utilization time 
+utilization_time = individual_energy / individual_peak  # hours
+
+# Aggregate stats
+agg_peak = aggregated_load_area.max()            # MW
+agg_energy = aggregated_load_area.sum()          # MWh
+agg_util_time = agg_energy / agg_peak            # hours
+
+# Coincidence factor
+sum_individual_peaks = individual_peak.sum()
+coincidence_factor = agg_peak / sum_individual_peaks
+
+# --- Print results ---
+summary = pd.DataFrame({
+    "Bus": area_buses,
+    "P_max (MW)": individual_peak.values,
+    "Energy (MWh)": individual_energy.values,
+    "Utilization time (h)": utilization_time.values
+})
+
+print("\n--- Utilization times for buses in area ---")
+print(summary.to_string(index=False, formatters={
+    "P_max (MW)": "{:.3f}".format,
+    "Energy (MWh)": "{:.1f}".format,
+    "Utilization time (h)": "{:.1f}".format
+}))
+
+print("\n--- Aggregated area ---")
+print(f" Peak load (MW): {agg_peak:.3f}")
+print(f" Annual energy (MWh): {agg_energy:.1f}")
+print(f" Utilization time (h): {agg_util_time:.1f}")
+
+print("\n--- Coincidence factor ---")
+print(f" Sum of individual peaks (MW): {sum_individual_peaks:.3f}")
+print(f" Aggregated peak (MW): {agg_peak:.3f}")
+print(f" Coincidence factor: {coincidence_factor:.3f}")
+
+# %%
