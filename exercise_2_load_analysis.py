@@ -415,4 +415,17 @@ plt.title("Load Duration Curve for Grid Area (with new 0.4 MW load)")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
+
+# %% Task 9 ##
+max_overload = (aggregated_with_new - P_LIMIT).max()
+if max_overload > 0:
+    print(f"Maximum overloading after new load is added: {max_overload:.4f} MW")
+else:
+    print("No overloading occurs after new load is added.")
+
+# %% Task 10 ##
+# Find number of hours per year where load demand exceeds line flow limit (congestion)
+congestion_hours = (aggregated_with_new > P_LIMIT).sum()
+print(f"Number of hours per year with congestion (load > {P_LIMIT:.3f} MW): {congestion_hours}")
+
