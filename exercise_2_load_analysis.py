@@ -435,4 +435,23 @@ congestion_hours = (aggregated_with_new > P_LIMIT).sum()
 print(f"Number of hours per year with congestion (load > {P_LIMIT:.3f} MW): {congestion_hours}")
 
 # %% Task 13 ##
+new_load_constant = 0.4  # MW constant for all hours
+aggregated_constant = aggregated_load_area + new_load_constant
 
+# --- Sort descending for load duration curves ---
+ldc_existing = np.sort(aggregated_load_area.values)[::-1]
+ldc_time_dep = np.sort(aggregated_with_new.values)[::-1]   # Task 7
+ldc_constant = np.sort(aggregated_constant.values)[::-1]   # Scenario 3
+
+# --- Plot comparison ---
+plt.figure(figsize=(12, 6))
+plt.plot(ldc_existing, label='Existing loads only', linewidth=2)
+plt.plot(ldc_time_dep, label='Existing + time-dependent new load', linewidth=2)
+plt.plot(ldc_constant, label='Existing + constant 0.4 MW new load', linewidth=2)
+plt.xlabel('Hour ranking (sorted by load)')
+plt.ylabel('Aggregated load [MW]')
+plt.title('Comparison of Load Duration Curves for Grid Area')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
