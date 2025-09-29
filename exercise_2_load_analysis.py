@@ -263,3 +263,15 @@ max_aggregated_load = aggregated_load_area.max()
 print("Maximum aggregated load demand:", max_aggregated_load)
 
 # %% Task 5 ##
+# Plot load duration curve
+sorted_load = np.sort(aggregated_load_area)[::-1]
+plt.figure(figsize=(12, 5))
+plt.plot(sorted_load, color='tab:orange')
+plt.xlabel('Ranked Hour')
+plt.ylabel('Aggregated Load Demand (MW)')
+plt.title('Load Duration Curve for Aggregated Load Demand (Buses 90, 91, 92, 96)')
+plt.grid(True)
+plt.tight_layout()
+#plt.show()
+
+
