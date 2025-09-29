@@ -46,15 +46,10 @@ P_lim = 0.637
 scaling_factor = np.random.uniform(1, 2)
 print(f"Scaling factor (scaling_factor) for new load: {scaling_factor:.3f}")
 
-# Maximum load demand of new load being added to the system (random between 1 and 2)
-scaling_factor = np.random.uniform(1, 2)
-print(f"Scaling factor (scaling_factor) for new load: {scaling_factor:.3f}")
-
 # Which time series from the load data set that should represent the new load
 i_time_series_new_load = 90
 
-# %% TASK 1 ##
-print("\n--- TASK 1 ---")
+
 # %% TASK 1 ##
 print("\n--- TASK 1 ---")
 net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
@@ -210,7 +205,7 @@ plt.ylabel("Minimum voltage in area [p.u.]")
 plt.title("Min voltage vs aggregated area demand (scaling factor 1→2)")
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 # ---- quick summary for report
 vmin = results["Vmin_area_pu"].min()
@@ -245,4 +240,21 @@ new_load_time_series = new_load_profiles[i_time_series_new_load]*scaling_factor
 # maximum load value for each of the load points in the grid data set (in units MW); the column index is the bus number
 # (1-indexed) and the row index is the hour of the year (0-indexed)
 load_time_series_mapped = profiles_mapped.mul(net.load['p_mw'])
+
+# Visualize the first few rows of the DataFrame
+print("\nLoad time series mapped (first 10 rows):")
+print(load_time_series_mapped.head(10))
+print(load_time_series_mapped.shape) 
+
+area_buses = [90, 91, 92, 96]
+aggregated_load_area = load_time_series_mapped[area_buses].sum(axis=1)
+plt.figure(figsize=(12, 5))
+plt.plot(aggregated_load_area, color='tab:blue')
+plt.xlabel('Hour of the year')
+plt.ylabel('Aggregated Load Demand (MW)')
+plt.title('Aggregated Load Demand Time Series for Grid Area (Buses 90, 91, 92, 96)')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
 # %%
