@@ -395,4 +395,24 @@ print(f"  - Margin (MW) until voltage limit reached: {margin_to_voltage_MW:.4f} 
 print(f"  - Relative increase allowed: {pct_increase_to_voltage:.1f} %")
 
 # %% Task 8 ##
+# Scale new customer profile so that its maximum demand = 0.4 MW
+new_load_scaled = new_load_time_series / new_load_time_series.max() * 0.4  # MW
 
+# Add to existing area aggregated load
+aggregated_with_new = aggregated_load_area + new_load_scaled
+
+# Sort for load duration curves
+ldc_before = np.sort(aggregated_load_area.values)[::-1]
+ldc_after  = np.sort(aggregated_with_new.values)[::-1]
+
+# 4) Plot
+plt.figure(figsize=(12, 6))
+plt.plot(ldc_before, label="Before new load", linewidth=2)
+plt.plot(ldc_after, label="After new load", linewidth=2)
+plt.xlabel("Hour ranking (sorted by load)")
+plt.ylabel("Aggregated load [MW]")
+plt.title("Load Duration Curve for Grid Area (with new 0.4 MW load)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
