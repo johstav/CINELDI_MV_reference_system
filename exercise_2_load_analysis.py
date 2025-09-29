@@ -258,11 +258,12 @@ plt.tight_layout()
 #plt.show()
 
 # %% Task 4 ##
-
+print("\n--- TASK 4 ---")
 max_aggregated_load = aggregated_load_area.max()
 print("Maximum aggregated load demand:", max_aggregated_load)
 
 # %% Task 5 ##
+print("\n--- TASK 5 ---")
 # Plot load duration curve
 sorted_load = np.sort(aggregated_load_area)[::-1]
 plt.figure(figsize=(12, 5))
@@ -281,7 +282,7 @@ plt.tight_layout()
 # %% Task 6 ##
 #Utilization time is given by Annual energy (MWh) / Peak Load (MW)
 # Coincidence factor is given by Peak of aggregated load / sum of individual peaks
-
+print("\n--- TASK 6 ---")
 # Extract time series for buses of interest
 area_ts = load_time_series_mapped[area_buses] # rows: hours, cols: buses
 
@@ -327,6 +328,7 @@ print(f" Aggregated peak (MW): {agg_peak:.3f}")
 print(f" Coincidence factor: {coincidence_factor:.3f}")
 
 # %% Task 7 ##
+print("\n--- TASK 7 ---")
 # Constrains : P_lim = 0.637 MW and Vmin:lim = 0.95 p.u.
 # To calculate capacity margin we need to:
 # Find base aggregated area load
@@ -395,6 +397,7 @@ print(f"  - Margin (MW) until voltage limit reached: {margin_to_voltage_MW:.4f} 
 print(f"  - Relative increase allowed: {pct_increase_to_voltage:.1f} %")
 
 # %% Task 8 ##
+print("\n--- TASK 8 ---")
 # Scale new customer profile so that its maximum demand = 0.4 MW
 new_load_scaled = new_load_time_series / new_load_time_series.max() * 0.4  # MW
 
@@ -418,6 +421,7 @@ plt.tight_layout()
 #plt.show()
 
 # %% Task 9 ##
+print("\n--- TASK 9 ---")
 max_overload = (aggregated_with_new - P_LIMIT).max()
 if max_overload > 0:
     print(f"Maximum overloading after new load is added: {max_overload:.4f} MW")
@@ -425,7 +429,10 @@ else:
     print("No overloading occurs after new load is added.")
 
 # %% Task 10 ##
+print("\n--- TASK 10 ---")
 # Find number of hours per year where load demand exceeds line flow limit (congestion)
 congestion_hours = (aggregated_with_new > P_LIMIT).sum()
 print(f"Number of hours per year with congestion (load > {P_LIMIT:.3f} MW): {congestion_hours}")
+
+# %% Task 13 ##
 
