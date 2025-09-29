@@ -255,6 +255,11 @@ plt.ylabel('Aggregated Load Demand (MW)')
 plt.title('Aggregated Load Demand Time Series for Grid Area (Buses 90, 91, 92, 96)')
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
-# %%
+# %% Task 4 ##
+
+max_aggregated_load = aggregated_load_area.max()
+print("Maximum aggregated load demand:", max_aggregated_load)
+
+# %% Task 5 ##
