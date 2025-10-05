@@ -117,3 +117,56 @@ def dis_limit_rule(m, t):
     return m.discharging[t] <= m.P_dmax
 m.dis_limit = en.Constraint(m.T, rule=dis_limit_rule)
 
+
+# %% Task 2: solve the optimization problem
+print('--- Task 2: solve the optimization problem ---')
+
+# Solve the optimization problem
+solver = SolverFactory('glpk')  # or 'cbc', 'gurobi', etc. if installed
+results = solver.solve(m, tee=True)
+
+# Extract results for plotting
+charging = [en.value(m.charging[t]) for t in m.T]
+discharging = [en.value(m.discharging[t]) for t in m.T]
+time_steps = list(m.T)
+SoC = [en.value(m.s[t]) for t in [-1] + time_steps]
+
+
+# Plot battery charge/discharge schedule
+plt.figure(figsize=(12,6))
+plt.plot(time_steps, charging, label='Charging (kW)', color='tab:blue')
+plt.plot(time_steps, discharging, label='Discharging (kW)', color='tab:orange')
+plt.step([-1] + time_steps, SoC, label='State of Charge (kWh)', color='tab:green', where='mid')
+plt.xlabel('Time step')
+plt.ylabel('Power (kW) / Energy (kWh)')
+plt.title('Battery Charge/Discharge Schedule and State of Charge')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#%% Task 3: Plot and explain the net load profile of the household
+
+# Net load = base load - PV production + charging - discharging
+net_load = [en.value(m.base_load[t]) - en.value(m.pv[t]) + en.value(m.charging[t]) - en.value(m.discharging[t]) for t in m.T]
+
+plt.figure(figsize=(12,6))
+plt.plot(time_steps, net_load, label='Net Load (kW)', color='tab:purple')
+plt.xlabel('Time step')
+plt.ylabel('Net Load (kW)')
+plt.title('Net Load Profile of the Household (After Battery Scheduling)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+print("""
+Explanation:
+The net load profile shows the household's effective demand on the grid after accounting for PV production and battery operation. 
+- When the battery is charging, net load increases (more grid import).
+- When the battery is discharging, net load decreases (less grid import, or even export if negative).
+- PV production reduces the net load during sunny hours.
+The optimization schedules the battery to charge when prices are low or PV is abundant, and discharge when prices are high, minimizing the household's total energy cost.
+""")
+
+
