@@ -117,9 +117,35 @@ def dis_limit_rule(m, t):
     return m.discharging[t] <= m.P_dmax
 m.dis_limit = en.Constraint(m.T, rule=dis_limit_rule)
 
+# --- Limit on grid import: maximum net import allowed from the grid to household ---
 
-# %% Task 2: solve the optimization problem
-print('--- Task 2: solve the optimization problem ---')
+# This is for task 6: limit on grid import (net import g_import - g_export)
+# Hvis man vil ha resultater for task 1-5, kommenter ut denne linja og de som følger
+
+
+configured_imp = 5  # kW 
+
+# Compute minimal required import (kW) from base load minus PV production (no battery)
+net_demand = Base_load - PV_prod
+P_imp_min = float(np.max(np.clip(net_demand, 0.0, None)))
+
+# Decide effective limit: if configured is lower than the unavoidable minimum, warn and use the minimum
+P_imp_eff = max(configured_imp, P_imp_min)
+if P_imp_eff > configured_imp:
+    print(f"WARNING: configured P_imp_max={configured_imp:.2f} kW < minimal required {P_imp_min:.2f} kW.")
+    print(f"Using effective import limit = {P_imp_eff:.2f} kW to keep the model feasible.")
+
+# Create Param and a single constraint using the effective limit
+m.P_imp_max = en.Param(initialize=float(P_imp_eff))  # kW
+
+def import_limit_rule(m, t):
+    return m.g_import[t] - m.g_export[t] <= m.P_imp_max
+
+m.import_limit = en.Constraint(m.T, rule=import_limit_rule)
+
+
+# %% Task 3: solve the optimization problem
+print('--- Task 3: solve the optimization problem ---')
 
 # Solve the optimization problem
 solver = SolverFactory('glpk')  # or 'cbc', 'gurobi', etc. if installed
@@ -143,10 +169,10 @@ plt.title('Battery Charge/Discharge Schedule and State of Charge')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
-#%% Task 3: Plot and explain the net load profile of the household
-
+#%% Task 4: Plot and explain the net load profile of the household
+print('--- Task 4: Plot and explain the net load profile of the household ---')
 # Net load = base load - PV production + charging - discharging
 net_load = [en.value(m.base_load[t]) - en.value(m.pv[t]) + en.value(m.charging[t]) - en.value(m.discharging[t]) for t in m.T]
 
@@ -158,7 +184,7 @@ plt.title('Net Load Profile of the Household (After Battery Scheduling)')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 print("""
 Explanation:
@@ -168,5 +194,108 @@ The net load profile shows the household's effective demand on the grid after ac
 - PV production reduces the net load during sunny hours.
 The optimization schedules the battery to charge when prices are low or PV is abundant, and discharge when prices are high, minimizing the household's total energy cost.
 """)
+
+#%% Task 7 : plot with battery constraints
+print('--- Task 7: Plot with battery constraints ---')
+
+def build_model(include_import_limit=False, import_limit_kW=None):
+    """Build a model equivalent to the earlier one. If include_import_limit is True,
+    add the import limit constraint with value import_limit_kW (kW).
+    """
+    mm = en.ConcreteModel()
+    mm.T = en.Set(initialize=T_list, ordered=True)
+    mm.dt = en.Param(initialize=float(dt))
+    mm.price = en.Param(mm.T, initialize=dict_Prices, within=en.Reals)
+    mm.base_load = en.Param(mm.T, initialize=dict_Base_load, within=en.Reals)
+    mm.pv = en.Param(mm.T, initialize=dict_PV_prod, within=en.Reals)
+
+    mm.E_cap = en.Param(initialize=float(capacity))
+    mm.P_chmax = en.Param(initialize=float(charging_power_limit))
+    mm.P_dmax = en.Param(initialize=float(discharging_power_limit))
+    mm.eta_ch = en.Param(initialize=float(charging_efficiency))
+    mm.eta_dis = en.Param(initialize=float(discharging_efficiency))
+
+    # variables
+    mm.charging = en.Var(mm.T, domain=en.NonNegativeReals)
+    mm.discharging = en.Var(mm.T, domain=en.NonNegativeReals)
+    mm.g_import = en.Var(mm.T, domain=en.NonNegativeReals)
+    mm.g_export = en.Var(mm.T, domain=en.NonNegativeReals)
+    mm.T_soc = en.Set(initialize=[-1] + T_list, ordered=True)
+    mm.s = en.Var(mm.T_soc, domain=en.NonNegativeReals)
+
+    # objective
+    def obj_mm(mv):
+        return sum((mv.g_import[t]*mv.price[t] - mv.g_export[t]*mv.price[t]) * mv.dt for t in mv.T)
+    mm.obj = en.Objective(rule=obj_mm, sense=en.minimize)
+
+    # constraints
+    mm.balance = en.Constraint(mm.T, rule=lambda mv, t: mv.pv[t] + mv.g_import[t] + mv.discharging[t] == mv.base_load[t] + mv.charging[t] + mv.g_export[t])
+
+    tprev = {T_list[i]: (T_list[i-1] if i>0 else -1) for i in range(len(T_list))}
+    def soc_dyn_mm(mv, t):
+        return mv.s[t] == mv.s[tprev[t]] + (mv.eta_ch*mv.charging[t] - mv.discharging[t]/mv.eta_dis) * mv.dt
+    mm.soc_dyn = en.Constraint(mm.T, rule=soc_dyn_mm)
+    mm.s_init = en.Constraint(expr=mm.s[-1] == 0.0)
+    mm.s_end  = en.Constraint(expr=mm.s[T_list[-1]] == 0.0)
+
+    mm.soc_cap = en.Constraint(mm.T_soc, rule=lambda mv, t: mv.s[t] <= mv.E_cap)
+    mm.ch_limit = en.Constraint(mm.T, rule=lambda mv, t: mv.charging[t] <= mv.P_chmax)
+    mm.dis_limit = en.Constraint(mm.T, rule=lambda mv, t: mv.discharging[t] <= mv.P_dmax)
+
+    if include_import_limit and import_limit_kW is not None:
+        mm.P_imp_max = en.Param(initialize=float(import_limit_kW))
+        mm.import_limit = en.Constraint(mm.T, rule=lambda mv, t: mv.g_import[t] - mv.g_export[t] <= mv.P_imp_max)
+
+    return mm
+
+
+# Build baseline model (no import limit) and solve
+print('Building and solving baseline (no import limit) model...')
+model_baseline = build_model(include_import_limit=False)
+solver = SolverFactory('glpk')
+res_base = solver.solve(model_baseline, tee=False)
+
+# Extract results from baseline
+charging_base = [en.value(model_baseline.charging[t]) for t in model_baseline.T]
+discharging_base = [en.value(model_baseline.discharging[t]) for t in model_baseline.T]
+net_base = [en.value(model_baseline.base_load[t]) - en.value(model_baseline.pv[t]) + en.value(model_baseline.charging[t]) - en.value(model_baseline.discharging[t]) for t in model_baseline.T]
+
+# The current model `m` includes the import limit (we solved it earlier). Extract its results too.
+charging_constr = [en.value(m.charging[t]) for t in m.T]
+discharging_constr = [en.value(m.discharging[t]) for t in m.T]
+net_constr = [en.value(m.base_load[t]) - en.value(m.pv[t]) + en.value(m.charging[t]) - en.value(m.discharging[t]) for t in m.T]
+
+# Plot comparison of battery schedules (same style as Task 3)
+# extract SoC for baseline and constrained models (include initial slot -1)
+soc_base = [en.value(model_baseline.s[t]) for t in ([-1] + list(model_baseline.T))]
+soc_constr = [en.value(m.s[t]) for t in ([-1] + list(m.T))]
+
+plt.figure(figsize=(12,6))
+plt.plot(time_steps, charging_base, label='Charging (baseline)', color='tab:blue')
+plt.plot(time_steps, discharging_base, label='Discharging (baseline)', color='tab:orange')
+plt.plot(time_steps, charging_constr, '--', label='Charging (with P_imp_max)', color='tab:blue')
+plt.plot(time_steps, discharging_constr, '--', label='Discharging (with P_imp_max)', color='tab:orange')
+plt.step([-1] + time_steps, soc_base, label='SoC baseline (kWh)', color='tab:green', where='mid')
+plt.step([-1] + time_steps, soc_constr, '--', label='SoC with P_imp_max (kWh)', color='tab:green', where='mid')
+plt.xlabel('Hour')
+plt.ylabel('Power (kW) / Energy (kWh)')
+plt.title('Battery Charge/Discharge Schedule and State of Charge: baseline vs with import limit')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+#plt.show()
+
+# Plot comparison of net load
+plt.figure(figsize=(12,6))
+plt.plot(time_steps, net_base, label='Net load (baseline)', color='tab:purple')
+plt.plot(time_steps, net_constr, label='Net load (with P_imp_max)', color='tab:red')
+plt.xlabel('Hour')
+plt.ylabel('Net load (kW)')
+plt.title('Household net load: baseline vs with import limit')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+#plt.show()
+
 
 
