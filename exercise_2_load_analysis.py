@@ -348,20 +348,33 @@ else:
     # assume the smallest scale corresponds to the base (scales were in [1,2])
     base_row = results.iloc[0]
 
-# Use Task 4's computed maximum aggregated load as the base area load
-P_area_base = float(max_aggregated_load)
-# Use Vmin from the sweep corresponding to the base_row as the baseline voltage
-Vmin_base = float(base_row["Vmin_area_pu"])
+# Prepare two reference operating points so we can compare results:
+#  - peak (Task 4 result)
+#  - base operating point from the sweep (Task 2) if available (scale == 1.0)
+P_area_peak = float(max_aggregated_load)
+P_area_base_from_sweep = float(base_row["P_area_sum_MW"]) if "P_area_sum_MW" in base_row.index else np.nan
+Vmin_base = float(base_row["Vmin_area_pu"]) if "Vmin_area_pu" in base_row.index else np.nan
 
-# Margin to line flow limit
-margin_to_line_MW = max(0.0, P_LIMIT - P_area_base)
-pct_increase_to_line = margin_to_line_MW / P_area_base * 100.0 if P_area_base>0 else np.nan
+# Margin to line flow limit (for both references)
+margin_to_line_peak_MW = max(0.0, P_LIMIT - P_area_peak)
+pct_increase_to_line_peak = margin_to_line_peak_MW / P_area_peak * 100.0 if P_area_peak>0 else np.nan
 
-#Print line flow limit results
-print("\nCapacity relative to line flow limit:")
+margin_to_line_base_MW = np.nan
+pct_increase_to_line_base = np.nan
+if not np.isnan(P_area_base_from_sweep) and P_area_base_from_sweep>0:
+    margin_to_line_base_MW = max(0.0, P_LIMIT - P_area_base_from_sweep)
+    pct_increase_to_line_base = margin_to_line_base_MW / P_area_base_from_sweep * 100.0
+
+# Print line flow limit results for both reference points
+print("\nCapacity relative to line flow limit (two refs):")
 print(f"  - Line (limit) P_LIMIT = {P_LIMIT:.3f} MW")
-print(f"  - Margin (MW) until line limit reached: {margin_to_line_MW:.4f} MW")
-print(f"  - Relative increase allowed: {pct_increase_to_line:.1f} %")
+print(f"  - Peak (Task4) aggregated load: {P_area_peak:.4f} MW")
+print(f"    * Margin until line limit reached: {margin_to_line_peak_MW:.4f} MW ({pct_increase_to_line_peak:.1f} %)" )
+if not np.isnan(P_area_base_from_sweep):
+    print(f"  - Base (sweep scale==1) aggregated load: {P_area_base_from_sweep:.4f} MW")
+    print(f"    * Margin until line limit reached: {margin_to_line_base_MW:.4f} MW ({pct_increase_to_line_base:.1f} %)" )
+else:
+    print("  - Base (sweep scale==1) not available in results; using peak only.")
 
 # 3) Margin to voltage limit (estimate by linear interpolation of results)
 #    We want P_area at which Vmin_area_pu crosses VMIN_LIMIT.
@@ -393,13 +406,21 @@ else:
             # solve for P such that V(P) = VMIN_LIMIT assuming linear V(P)
             P_at_vlimit = P1 + (VMIN_LIMIT - V1) * (P2 - P1) / (V2 - V1)
 
-    margin_to_voltage_MW = max(0.0, P_at_vlimit - P_area_base) if not np.isnan(P_at_vlimit) else np.nan
-    pct_increase_to_voltage = margin_to_voltage_MW / P_area_base * 100.0 if P_area_base>0 else np.nan
+    # Compute margins relative to peak and base-from-sweep (if available)
+    margin_to_voltage_peak_MW = max(0.0, P_at_vlimit - P_area_peak) if not np.isnan(P_at_vlimit) else np.nan
+    pct_increase_to_voltage_peak = margin_to_voltage_peak_MW / P_area_peak * 100.0 if P_area_peak>0 else np.nan
 
-print("\nCapacity relative to voltage limit:")
-print(f"  - Estimated aggregated load when Vmin reaches {VMIN_LIMIT:.2f} p.u.: {P_at_vlimit:.4f} MW")
-print(f"  - Margin (MW) until voltage limit reached: {margin_to_voltage_MW:.4f} MW")
-print(f"  - Relative increase allowed: {pct_increase_to_voltage:.1f} %")
+    margin_to_voltage_base_MW = np.nan
+    pct_increase_to_voltage_base = np.nan
+    if not np.isnan(P_area_base_from_sweep):
+        margin_to_voltage_base_MW = max(0.0, P_at_vlimit - P_area_base_from_sweep)
+        pct_increase_to_voltage_base = margin_to_voltage_base_MW / P_area_base_from_sweep * 100.0
+
+    print("\nCapacity relative to voltage limit (two refs):")
+    print(f"  - Estimated aggregated load when Vmin reaches {VMIN_LIMIT:.2f} p.u.: {P_at_vlimit:.4f} MW")
+    print(f"  - Relative to Peak (Task4): margin {margin_to_voltage_peak_MW:.4f} MW ({pct_increase_to_voltage_peak:.1f} %)" )
+    if not np.isnan(P_area_base_from_sweep):
+        print(f"  - Relative to Base (scale==1): margin {margin_to_voltage_base_MW:.4f} MW ({pct_increase_to_voltage_base:.1f} %)" )
 
 # %% Task 8 ##
 print("\n--- TASK 8 ---")
