@@ -335,17 +335,22 @@ print("\n--- TASK 7 ---")
 # Compute how much additional load can be added 
 # estimate 
 
+# --- TASK 7 ---
+
 P_LIMIT = 0.637           # MW (line limit)
 VMIN_LIMIT = 0.95         # p.u. (voltage limit)
 
-#Base aggregated area load 
+# Base aggregated area load: use result from Task 4 (max_aggregated_load)
+# and the corresponding Vmin estimate from the sweep (if available).
 if "scale" in results.columns and (results["scale"] == 1.0).any():
     base_row = results[results["scale"] == 1.0].iloc[0]
 else:
     # assume the smallest scale corresponds to the base (scales were in [1,2])
     base_row = results.iloc[0]
 
-P_area_base = float(base_row["P_area_sum_MW"])
+# Use Task 4's computed maximum aggregated load as the base area load
+P_area_base = float(max_aggregated_load)
+# Use Vmin from the sweep corresponding to the base_row as the baseline voltage
 Vmin_base = float(base_row["Vmin_area_pu"])
 
 # Margin to line flow limit
@@ -455,3 +460,5 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+
