@@ -13,6 +13,9 @@ at NTNU (TET4565/TET4575)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
+import load_profiles as lp
+import pandapower_read_csv as ppcsv
 from pyomo.opt import SolverFactory
 from pyomo.core import Var
 import pyomo.environ as en
@@ -28,14 +31,83 @@ charging_power_limit=parameters["Power_capacity"]
 discharging_power_limit=parameters["Power_capacity"]
 charging_efficiency=parameters["Charging_efficiency"]
 discharging_efficiency=parameters["Discharging_efficiency"]
+# Override battery specs for this exercise: 1 MW / 2 MWh
+# Energy_capacity in file is expected in kWh, Power_capacity in kW
+try:
+    capacity = 2000.0        # 2 MWh = 2000 kWh
+    charging_power_limit = 1000.0  # 1 MW = 1000 kW
+    discharging_power_limit = 1000.0
+    print('Battery parameters overridden: 1 MW / 2 MWh (kW/kWh units).')
+except Exception:
+    pass
 #%% Read load demand and PV production profile data
-testData = pd.read_csv('./profile_input.csv')
+#
+# Replace the household base load with the aggregated area load for the representative
+# day (28 Feb) from the CINELDI reference dataset. If the CINELDI dataset is not
+# available locally, fall back to the original ./profile_input.csv file.
 
-# Convert the various timeseries/profiles to numpy arrays
-Hours = testData['Hours'].values
-Base_load = testData['Base_load'].values
-PV_prod = testData['PV_prod'].values
-Price = testData['Price'].values
+# Try to build aggregated area profile (MW) and convert to kW for this script
+try:
+    path_data_set = 'CINELDI_MV_reference_system_v_2023-03-06'
+    filename_load_data_fullpath = os.path.join(path_data_set, 'load_data_CINELDI_MV_reference_system.csv')
+    filename_load_mapping_fullpath = os.path.join(path_data_set, 'mapping_loads_to_CINELDI_MV_reference_grid.csv')
+
+    # buses in the area (same as used in exercise 4)
+    bus_i_subset = [90, 91, 92, 96]
+    scaling_factor = 10
+
+    # read network and mapped profiles
+    net = ppcsv.read_net_from_csv(path_data_set, baseMVA=10)
+    load_profiles = lp.load_profiles(filename_load_data_fullpath)
+    # 28 February (day index in 1..365): 31 (Jan) + 28
+    repr_days = [31 + 28]
+    profiles_mapped = load_profiles.map_rel_load_profiles(filename_load_mapping_fullpath, repr_days)
+
+    # Scale mapped relative profiles by bus maximum load (MW)
+    load_time_series_mapped = profiles_mapped.mul(net.load['p_mw'])
+    # select subset, apply scaling and aggregate (MW)
+    load_time_series_subset = load_time_series_mapped[bus_i_subset] * scaling_factor
+    load_time_series_subset_aggr = load_time_series_subset.sum(axis=1)
+
+    # base_aggr is the 24-hour series in MW; convert to kW for this scheduling model
+    base_aggr_kW = (load_time_series_subset_aggr * 1000.0).values
+
+    # Hours 0..23
+    Hours = np.arange(len(base_aggr_kW))
+    Base_load = base_aggr_kW.copy()
+
+    # Set PV production to zero for this exercise
+    PV_prod = np.zeros_like(Base_load)
+
+    # Scale load to year 7 (start at y=6). Use growth_rate = 3% as in Exercise 4
+    try:
+        growth_rate = 0.03
+        # year 7 corresponds to starting index y=6 -> exponent = 6
+        scale_to_year7 = (1.0 + growth_rate) ** 6
+        Base_load = Base_load * scale_to_year7
+        print(f'Scaled Base_load to year 7 (start y=6) using growth_rate={growth_rate:.3f}, scale factor={scale_to_year7:.3f}.')
+    except Exception:
+        pass
+
+    # Try to read a price series from profile_input.csv if it exists; otherwise zeros
+    if os.path.exists('./profile_input.csv'):
+        tmp = pd.read_csv('./profile_input.csv')
+        if 'Price' in tmp.columns:
+            Price = tmp['Price'].values
+        else:
+            Price = np.zeros_like(Base_load)
+    else:
+        Price = np.zeros_like(Base_load)
+
+    print('Using aggregated area load for 28-Feb as Base_load (kW); PV set to zero.')
+except Exception as _e:
+    # Fallback: use the provided profile_input.csv
+    print('Warning: could not build aggregated area load from CINELDI dataset — falling back to ./profile_input.csv')
+    testData = pd.read_csv('./profile_input.csv')
+    Hours = testData['Hours'].values
+    Base_load = testData['Base_load'].values
+    PV_prod = testData['PV_prod'].values
+    Price = testData['Price'].values
 
 # Make dictionaries (for simpler use in Pyomo)
 dict_Prices = dict(zip(Hours, Price))
@@ -81,9 +153,11 @@ m.s     = en.Var(m.T_soc, domain=en.NonNegativeReals)          # SoC [kWh]
 
 # --- OBJECTIVE: minimize energy cost over the horizon ---
 def obj_rule(m):
-    # cost = (imports - exports) * price * Δt
-    return sum((m.g_import[t]*m.price[t] - m.g_export[t]*m.price[t]) * m.dt for t in m.T)
-m.obj = en.Objective(rule=obj_rule, sense=en.minimize)
+    # Objective: maximize battery revenue from price arbitrage
+    # Revenue = (exports - imports) * price * Δt
+    return sum((m.g_export[t]*m.price[t] - m.g_import[t]*m.price[t]) * m.dt for t in m.T)
+
+m.obj = en.Objective(rule=obj_rule, sense=en.maximize)
 
 # --- CONSTRAINTS ---
 
@@ -123,7 +197,8 @@ m.dis_limit = en.Constraint(m.T, rule=dis_limit_rule)
 # Hvis man vil ha resultater for task 1-5, kommenter ut denne linja og de som følger
 
 
-configured_imp = 5  # kW 
+# Configure import (net import) limit for the area test — set to 4 MW = 4000 kW
+configured_imp = 4000  # kW 
 
 # Compute minimal required import (kW) from base load minus PV production (no battery)
 net_demand = Base_load - PV_prod
@@ -163,6 +238,16 @@ plt.figure(figsize=(12,6))
 plt.plot(time_steps, charging, label='Charging (kW)', color='tab:blue')
 plt.plot(time_steps, discharging, label='Discharging (kW)', color='tab:orange')
 plt.step([-1] + time_steps, SoC, label='State of Charge (kWh)', color='tab:green', where='mid')
+# Plot net load with and without flexibility on the same figure (kW)
+# net without flex = base_load - pv (no battery actions)
+net_without_flex = [en.value(m.base_load[t]) - en.value(m.pv[t]) for t in m.T]
+# net with flex = base_load - pv + charging - discharging
+net_with_flex = [en.value(m.base_load[t]) - en.value(m.pv[t]) + en.value(m.charging[t]) - en.value(m.discharging[t]) for t in m.T]
+plt.plot(time_steps, net_without_flex, label='Load without flex (kW)', color='tab:purple', linestyle=':')
+plt.plot(time_steps, net_with_flex, label='Load with flex (kW)', color='tab:red', linestyle='-')
+# congestion threshold: show exactly P_lim = 4 MW (4000 kW) as requested
+P_imp_line = 4000.0  # kW == 4 MW
+plt.axhline(P_imp_line, color='red', linestyle='--', linewidth=1.5, label=f'Congestion threshold (P_lim = {P_imp_line/1000:.2f} MW)')
 plt.xlabel('Time step')
 plt.ylabel('Power (kW) / Energy (kWh)')
 plt.title('Battery Charge/Discharge Schedule and State of Charge')
@@ -225,8 +310,9 @@ def build_model(include_import_limit=False, import_limit_kW=None):
 
     # objective
     def obj_mm(mv):
-        return sum((mv.g_import[t]*mv.price[t] - mv.g_export[t]*mv.price[t]) * mv.dt for t in mv.T)
-    mm.obj = en.Objective(rule=obj_mm, sense=en.minimize)
+        # Objective for the build_model: maximize battery revenue (exports - imports) * price * dt
+        return sum((mv.g_export[t]*mv.price[t] - mv.g_import[t]*mv.price[t]) * mv.dt for t in mv.T)
+    mm.obj = en.Objective(rule=obj_mm, sense=en.maximize)
 
     # constraints
     mm.balance = en.Constraint(mm.T, rule=lambda mv, t: mv.pv[t] + mv.g_import[t] + mv.discharging[t] == mv.base_load[t] + mv.charging[t] + mv.g_export[t])
@@ -283,7 +369,7 @@ plt.title('Battery Charge/Discharge Schedule and State of Charge: baseline vs wi
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-#plt.show()
+plt.show()
 
 # Plot comparison of net load
 plt.figure(figsize=(12,6))
