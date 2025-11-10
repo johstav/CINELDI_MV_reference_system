@@ -150,6 +150,7 @@ print('--- Task 3: solve the optimization problem ---')
 # Solve the optimization problem
 solver = SolverFactory('glpk')  # or 'cbc', 'gurobi', etc. if installed
 results = solver.solve(m, tee=True)
+print(results)
 
 # Extract results for plotting
 charging = [en.value(m.charging[t]) for t in m.T]
