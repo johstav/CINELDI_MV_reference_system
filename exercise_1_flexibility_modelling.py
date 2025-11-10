@@ -105,13 +105,13 @@ t_act = 1200
 
 # EWH activation signal that sets the status of the EWHs after activating flexibility; 
 # 1 turns all EWHs on; 0 turns all EWHs off; set to None to disable flexibility activation
-S_act = 1
+S_act = 0
 
 # Number of time steps (minutes)
 time_steps = 48*60
 
 # Number of EWHs / hot water tanks to model
-N_EWH = 1
+N_EWH = 100
 
 if N_EWH == 1:
     # If modelling a single EWH, initialize temperature as specified above
@@ -198,4 +198,102 @@ plt.xlabel("Time (minutes)")
 plt.ylabel("Flexibility (kW)")
 plt.title("Activated Flexibility vs. Baseline Consumption")
 plt.grid(True)
+plt.show()
+
+# ---------------------------------------------------------------------------
+# Appendix (non-destructive): quantify flexibility for chosen activation times
+# This block leaves the existing model and variables intact and only appends
+# analysis for activation times [150, 175, 400, 1000]. It recomputes aggregated
+# profiles per activation time (so it does not modify earlier variables).
+# ---------------------------------------------------------------------------
+def _aggregate_population_for_activation(t_act_val, S_act_val):
+    """Aggregate baseline and with-activation profiles for the whole population.
+    Returns (P_base_total, P_with_total) arrays in kW."""
+    P_base_total = np.zeros(time_steps)
+    P_with_total = np.zeros(time_steps)
+    # loop over devices
+    for i in range(N_EWH):
+        T_dev = T_init[i]
+        # try to reuse last-device state if present, else default off
+        try:
+            prev_S = S_list[-1]
+            prev_P = P_list[-1]
+        except Exception:
+            prev_S = 0
+            prev_P = 0
+
+        # baseline for this device (no activation)
+        P_base_dev, _, _ = make_load_profile_ewh(time_steps, prev_P, T_dev, prev_S, T_a, C, R, T_min, T_max, None, None)
+        # with activation at t_act_val
+        P_with_dev, _, _ = make_load_profile_ewh(time_steps, prev_P, T_dev, prev_S, T_a, C, R, T_min, T_max, t_act_val, S_act_val)
+
+        P_base_total += np.array(P_base_dev)
+        P_with_total += np.array(P_with_dev)
+
+    return P_base_total, P_with_total
+
+
+activation_times = [150, 175, 400, 1000]
+S_act_used = 0
+summary_rows = []
+
+for t_act_val in activation_times:
+    P_base_tot, P_with_tot = _aggregate_population_for_activation(t_act_val, S_act_used)
+    P_flex = P_with_tot - P_base_tot
+
+    pos_capacity_kw = float(np.max(P_flex)) if P_flex.size else 0.0
+    neg_capacity_kw = float(-np.min(P_flex)) if P_flex.size else 0.0
+    pos_minutes = int((P_flex > 0).sum())
+    neg_minutes = int((P_flex < 0).sum())
+
+    summary_rows.append((t_act_val, pos_capacity_kw, neg_capacity_kw, pos_minutes, neg_minutes, float(np.max(P_base_tot)), float(np.max(P_with_tot))))
+
+    print(f"\n--- Activation t={t_act_val} min ---")
+    print(f"Peak increase (total): {pos_capacity_kw:.2f} kW, Peak reduction (total): {neg_capacity_kw:.2f} kW")
+    print(f"Positive activation duration: {pos_minutes} min ({pos_minutes/60.0:.2f} h)")
+    print(f"Negative activation duration: {neg_minutes} min ({neg_minutes/60.0:.2f} h)")
+
+    # plot aggregated baseline vs with-activation for this t_act
+    plt.figure(figsize=(10,3))
+    t = np.arange(len(P_with_tot))
+    plt.plot(t, P_base_tot, color='tab:blue', linestyle='--', label='Baseline')
+    plt.plot(t, P_with_tot, color='tab:blue', label='With activation')
+    plt.fill_between(t, P_base_tot, P_with_tot, where=(P_with_tot>P_base_tot), interpolate=True, color='tab:green', alpha=0.35)
+    plt.fill_between(t, P_base_tot, P_with_tot, where=(P_with_tot<P_base_tot), interpolate=True, color='tab:red', alpha=0.35)
+    plt.title(f'Aggregated EWH activation (t_act={t_act_val} min)')
+    plt.xlabel('Time (minutes)')
+    plt.ylabel('Aggregated power (kW)')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+# Save summary CSV
+try:
+    import csv
+    csvfile = 'ewh_flex_summary.csv'
+    with open(csvfile, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['t_act_min','pos_capacity_kw','neg_capacity_kw','pos_minutes','neg_minutes','base_peak_kw','with_peak_kw'])
+        for r in summary_rows:
+            w.writerow(r)
+    print(f"\nSaved summary to {csvfile}")
+except Exception as e:
+    print("Could not write CSV summary:", e)
+
+# Overlay plot of aggregated flexibility (sampled every 5 minutes to reduce plot density)
+plt.figure(figsize=(12,4))
+sample = 5
+for (t_act_val, *_ ) in summary_rows:
+    P_base_tot, P_with_tot = _aggregate_population_for_activation(t_act_val, S_act_used)
+    P_flex = P_with_tot - P_base_tot
+    t = np.arange(0, len(P_flex), sample)
+    plt.plot(t, P_flex[t], label=f't={t_act_val} min')
+
+plt.axhline(0, color='k', linestyle='--', linewidth=0.6)
+plt.xlabel('Time (minutes)')
+plt.ylabel('Aggregated flexibility (kW)')
+plt.title('Aggregated EWH flexibility (overlay for activation times)')
+plt.legend(title='t_act')
+plt.grid(True)
+plt.tight_layout()
 plt.show()
