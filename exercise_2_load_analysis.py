@@ -194,7 +194,8 @@ results = pd.DataFrame(rows).sort_values("P_area_sum_MW").reset_index(drop=True)
 # ---- show table (first rows) and optionally save
 print("\n=== Task 2 table (first 10 rows) ===")
 print(results.head(10).to_string(index=False))
-# results.to_csv("task2_table.csv", index=False)  # uncomment to save
+# results.to_csv("task2_table.csv", index=False)  
+
 
 # ---- plot: minimum area voltage vs aggregated area demand
 plt.figure()
@@ -239,7 +240,13 @@ new_load_time_series = new_load_profiles[i_time_series_new_load]*scaling_factor
 # Calculate load time series in units MW (or, equivalently, MWh/h) by scaling the normalized load time series by the
 # maximum load value for each of the load points in the grid data set (in units MW); the column index is the bus number
 # (1-indexed) and the row index is the hour of the year (0-indexed)
-load_time_series_mapped = profiles_mapped.mul(net.load['p_mw'])
+# Use the base snapshot of p_mw taken before the Task 2 sweep so that
+# mapped time series reflects the original base loads (not the sweep-modified net.load).
+try:
+    base_p_values = base_p
+except NameError:
+    base_p_values = net.load['p_mw']
+load_time_series_mapped = profiles_mapped.mul(base_p_values)
 
 # Visualize the first few rows of the DataFrame
 print("\nLoad time series mapped (first 10 rows):")
@@ -248,6 +255,7 @@ print(load_time_series_mapped.shape)
 
 area_buses = [90, 91, 92, 96]
 aggregated_load_area = load_time_series_mapped[area_buses].sum(axis=1)
+print("max of aggregated_load_area:", aggregated_load_area.max())
 plt.figure(figsize=(12, 5))
 plt.plot(aggregated_load_area, color='tab:blue')
 plt.xlabel('Hour of the year')
@@ -257,10 +265,23 @@ plt.grid(True)
 plt.tight_layout()
 #plt.show()
 
+# --- Canonical metrics (moved here so we use the mapped time series)
+area_ts = load_time_series_mapped[area_buses]
+individual_peaks = area_ts.max(axis=0)            # MW per bus
+sum_individual_peaks = float(individual_peaks.sum())
+aggregated_peak = float(aggregated_load_area.max())
+idx_peak = int(aggregated_load_area.idxmax())
+print(f"\nCanonical sum of individual peaks (buses {area_buses}): {sum_individual_peaks:.9f} MW")
+print(f"Canonical aggregated time-series peak: {aggregated_peak:.12f} MW (hour index {idx_peak})")
+
+
+
 # %% Task 4 ##
 print("\n--- TASK 4 ---")
 max_aggregated_load = aggregated_load_area.max()
-print("Maximum aggregated load demand:", max_aggregated_load)
+print("Maximum aggregated load demand (Task 4 aggregated time-series peak):", f"{max_aggregated_load:.12f}")
+
+
 
 # %% Task 5 ##
 print("\n--- TASK 5 ---")
@@ -274,8 +295,6 @@ plt.title('Load Duration Curve for Aggregated Load Demand (Buses 90, 91, 92, 96)
 plt.grid(True)
 plt.tight_layout()
 #plt.show()
-
-
 
 
 
@@ -327,100 +346,7 @@ print(f" Sum of individual peaks (MW): {sum_individual_peaks:.3f}")
 print(f" Aggregated peak (MW): {agg_peak:.3f}")
 print(f" Coincidence factor: {coincidence_factor:.3f}")
 
-# %% Task 7 ##
-print("\n--- TASK 7 ---")
-# Constrains : P_lim = 0.637 MW and Vmin:lim = 0.95 p.u.
-# To calculate capacity margin we need to:
-# Find base aggregated area load
-# Compute how much additional load can be added 
-# estimate 
 
-# --- TASK 7 ---
-
-P_LIMIT = 0.637           # MW (line limit)
-VMIN_LIMIT = 0.95         # p.u. (voltage limit)
-
-# Base aggregated area load: use result from Task 4 (max_aggregated_load)
-# and the corresponding Vmin estimate from the sweep (if available).
-if "scale" in results.columns and (results["scale"] == 1.0).any():
-    base_row = results[results["scale"] == 1.0].iloc[0]
-else:
-    # assume the smallest scale corresponds to the base (scales were in [1,2])
-    base_row = results.iloc[0]
-
-# Prepare two reference operating points so we can compare results:
-#  - peak (Task 4 result)
-#  - base operating point from the sweep (Task 2) if available (scale == 1.0)
-P_area_peak = float(max_aggregated_load)
-P_area_base_from_sweep = float(base_row["P_area_sum_MW"]) if "P_area_sum_MW" in base_row.index else np.nan
-Vmin_base = float(base_row["Vmin_area_pu"]) if "Vmin_area_pu" in base_row.index else np.nan
-
-# Margin to line flow limit (for both references)
-margin_to_line_peak_MW = max(0.0, P_LIMIT - P_area_peak)
-pct_increase_to_line_peak = margin_to_line_peak_MW / P_area_peak * 100.0 if P_area_peak>0 else np.nan
-
-margin_to_line_base_MW = np.nan
-pct_increase_to_line_base = np.nan
-if not np.isnan(P_area_base_from_sweep) and P_area_base_from_sweep>0:
-    margin_to_line_base_MW = max(0.0, P_LIMIT - P_area_base_from_sweep)
-    pct_increase_to_line_base = margin_to_line_base_MW / P_area_base_from_sweep * 100.0
-
-# Print line flow limit results for both reference points
-print("\nCapacity relative to line flow limit (two refs):")
-print(f"  - Line (limit) P_LIMIT = {P_LIMIT:.3f} MW")
-print(f"  - Peak (Task4) aggregated load: {P_area_peak:.4f} MW")
-print(f"    * Margin until line limit reached: {margin_to_line_peak_MW:.4f} MW ({pct_increase_to_line_peak:.1f} %)" )
-if not np.isnan(P_area_base_from_sweep):
-    print(f"  - Base (sweep scale==1) aggregated load: {P_area_base_from_sweep:.4f} MW")
-    print(f"    * Margin until line limit reached: {margin_to_line_base_MW:.4f} MW ({pct_increase_to_line_base:.1f} %)" )
-else:
-    print("  - Base (sweep scale==1) not available in results; using peak only.")
-
-# 3) Margin to voltage limit (estimate by linear interpolation of results)
-#    We want P_area at which Vmin_area_pu crosses VMIN_LIMIT.
-#    Ensure results sorted by P_area_sum_MW
-res = results.sort_values("P_area_sum_MW").reset_index(drop=True)
-P_vals = res["P_area_sum_MW"].to_numpy()
-V_vals = res["Vmin_area_pu"].to_numpy()
-
-# If all V are above limit, then voltage never violated in sweep range
-if (V_vals >= VMIN_LIMIT).all():
-    P_at_vlimit = np.nan
-    margin_to_voltage_MW = np.nan
-    pct_increase_to_voltage = np.nan
-    print("\nVoltage limit not reached within sampled scaling (no violation in sweep).")
-else:
-    # find first index where V drops below VMIN_LIMIT
-    idx = np.where(V_vals < VMIN_LIMIT)[0][0]
-    # If idx == 0 then even the lowest P already violates VMIN
-    if idx == 0:
-        P_at_vlimit = P_vals[0]
-    else:
-        # linear interpolation between (P_vals[idx-1], V_vals[idx-1]) and (P_vals[idx], V_vals[idx])
-        P1, V1 = P_vals[idx-1], V_vals[idx-1]
-        P2, V2 = P_vals[idx], V_vals[idx]
-        # avoid division by zero if V1==V2
-        if V2 == V1:
-            P_at_vlimit = P2
-        else:
-            # solve for P such that V(P) = VMIN_LIMIT assuming linear V(P)
-            P_at_vlimit = P1 + (VMIN_LIMIT - V1) * (P2 - P1) / (V2 - V1)
-
-    # Compute margins relative to peak and base-from-sweep (if available)
-    margin_to_voltage_peak_MW = max(0.0, P_at_vlimit - P_area_peak) if not np.isnan(P_at_vlimit) else np.nan
-    pct_increase_to_voltage_peak = margin_to_voltage_peak_MW / P_area_peak * 100.0 if P_area_peak>0 else np.nan
-
-    margin_to_voltage_base_MW = np.nan
-    pct_increase_to_voltage_base = np.nan
-    if not np.isnan(P_area_base_from_sweep):
-        margin_to_voltage_base_MW = max(0.0, P_at_vlimit - P_area_base_from_sweep)
-        pct_increase_to_voltage_base = margin_to_voltage_base_MW / P_area_base_from_sweep * 100.0
-
-    print("\nCapacity relative to voltage limit (two refs):")
-    print(f"  - Estimated aggregated load when Vmin reaches {VMIN_LIMIT:.2f} p.u.: {P_at_vlimit:.4f} MW")
-    print(f"  - Relative to Peak (Task4): margin {margin_to_voltage_peak_MW:.4f} MW ({pct_increase_to_voltage_peak:.1f} %)" )
-    if not np.isnan(P_area_base_from_sweep):
-        print(f"  - Relative to Base (scale==1): margin {margin_to_voltage_base_MW:.4f} MW ({pct_increase_to_voltage_base:.1f} %)" )
 
 # %% Task 8 ##
 print("\n--- TASK 8 ---")
@@ -448,6 +374,7 @@ plt.tight_layout()
 
 # %% Task 9 ##
 print("\n--- TASK 9 ---")
+P_LIMIT = P_lim  # MW
 max_overload = (aggregated_with_new - P_LIMIT).max()
 if max_overload > 0:
     print(f"Maximum overloading after new load is added: {max_overload:.4f} MW")
@@ -481,5 +408,45 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+# %% Task 14 & 15 (inserted below Task 13)
+print("\n=== Comparison of Utilization Times and Coincidence Factors ===")
+# Use the three cases defined earlier
+cases = [
+    ('(a) Existing only', aggregated_load_area),
+    ('(b) + Time-dependent new load', aggregated_with_new),
+    ('(c) + Constant 0.4 MW', aggregated_constant)
+]
+
+rows = []
+for label, series in cases:
+    pmax = float(series.max())
+    energy = float(series.sum())
+    util_time = energy / pmax if pmax>0 else np.nan
+    # compute sum of individual peaks for the case: include new load peak where applicable
+    sum_ind = float(individual_peaks.sum())
+    if 'Time-dependent' in label:
+        # add peak of the new time-dependent load (new_load_time_series scaled to 0.4 MW in Task 8)
+        new_peak = float(new_load_time_series.max() / new_load_time_series.max() * 0.4) if new_load_time_series.max()>0 else 0.0
+        sum_ind += new_peak
+    if 'Constant' in label:
+        sum_ind += 0.4
+    coincidence = pmax / sum_ind if sum_ind>0 else np.nan
+    rows.append((label, pmax, util_time, coincidence))
+
+# Build a DataFrame for neat tabular output
+df14 = pd.DataFrame(rows, columns=['Scenario', 'Pmax_MW', 'Util_time_h', 'Coincidence'])
+df14.set_index('Scenario', inplace=True)
+# Tidy column names for display
+df14.columns = ['Pmax [MW]', 'Utilization time [h]', 'Coincidence factor']
+
+print('\n=== Comparison of Utilization Times and Coincidence Factors ===')
+# Use explicit formatters to align columns and control precision
+formatters = {
+    'Pmax [MW]': lambda x: f"{x:10.6f}",
+    'Utilization time [h]': lambda x: f"{x:12.6f}",
+    'Coincidence factor': lambda x: f"{x:10.6f}"
+}
+print(df14.to_string(formatters=formatters))
 
 
